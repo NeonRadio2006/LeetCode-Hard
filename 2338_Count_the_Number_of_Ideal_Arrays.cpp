@@ -1,3 +1,4 @@
+// 1.O(maxValuelog(log(maxValue))) approach
 // Problem Constraints:- n ∈ [2,1e4] and maxValue ∈ [1,1e4]
 // 1st Condition:- nums[i] ∈ [1,maxValue] ∀ i ∈ [0,n)
 // 2nd Condition:- (nums[i]%nums[i-1])==0 ∀ i ∈ (0,n)
@@ -116,6 +117,123 @@ public:
             ans=(ans+ways)%MOD;
         }
         // Returning the answer
+        return ans;
+    }
+};
+// 2.O(n+maxValue) approach
+// 10th Observation:-
+// We can optimize the O(M log log M) factorization down to strictly O(M).
+// The number of valid ways for an array ending in X, W(X), is a Multiplicative Function.
+// If we separate X into its smallest prime power (p^e) and the rest of the number (R), 
+// such that gcd(p^e, R) == 1, then W(X) = W(p^e) * W(R).
+// By using a Linear Sieve, we track the exponent 'e' and the remainder 'R' for every number as we build it.
+// This allows us to calculate W(X) instantly in O(1) time without ANY while loops!
+class Solution {
+public:
+    const int MOD = 1e9 + 7;
+    vector<long long> fact, invFact;
+    
+    // Binary exponentiation with MOD
+    long long power(long long b, long long e) {
+        long long ans = 1;
+        b %= MOD;
+        while (e > 0) {
+            if (e % 2) ans = (ans * b) % MOD;
+            b = (b * b) % MOD;
+            e /= 2;
+        }
+        return ans;
+    }
+    
+    // Precomputing factorials and inverse factorials with MOD
+    void preComb(int mx) {
+        fact.resize(mx + 1);
+        invFact.resize(mx + 1);
+        fact[0] = 1;
+        for (int i = 1; i <= mx; i++) {
+            fact[i] = (fact[i - 1] * i) % MOD;
+        }
+        invFact[mx] = power(fact[mx], MOD - 2);
+        invFact[0] = 1;
+        for (int i = mx - 1; i >= 1; i--) {
+            invFact[i] = (invFact[i + 1] * (i + 1)) % MOD;
+        }
+    }
+    
+    // nCr function for constant time calculation
+    long long nCr(int n, int r) {
+        if (r < 0 || r > n) return 0;
+        long long num = fact[n];
+        long long den = (invFact[r] * invFact[n - r]) % MOD;
+        return (num * den) % MOD;
+    }
+    
+    int idealArrays(int n, int maxValue) {
+        // Taking +15 as safety for the max exponent we can get
+        preComb(n + 15);
+        
+        // --- MULTIPLICATIVE LINEAR SIEVE SETUP ---
+        vector<int> primes;
+        // count[i] stores the exponent of the SMALLEST prime factor of i
+        vector<int> count(maxValue + 1, 0); 
+        // R[i] stores the remaining part of the number after dividing out the smallest prime power
+        vector<int> R(maxValue + 1, 1);     
+        // ways[i] stores the total number of ideal arrays ending exactly in i
+        vector<long long> ways(maxValue + 1, 1); 
+        
+        // Base case: 1 way to form an array ending in 1 (all 1s)
+        long long ans = 1; 
+        
+        for (int i = 2; i <= maxValue; i++) {
+            // If count[i] is still 0, it means 'i' hasn't been built by any smaller primes.
+            // Therefore, 'i' MUST be a prime number itself.
+            if (count[i] == 0) {
+                primes.push_back(i);
+                count[i] = 1; // It's prime, so its exponent is 1
+                R[i] = 1;     // The rest of the number is just 1
+                
+                // For a prime, we just distribute 1 prime factor into 'n' slots
+                ways[i] = nCr(n, 1); 
+            }
+            
+            // At this point, ways[i] is fully calculated. Add it to our global answer.
+            ans = (ans + ways[i]) % MOD;
+            
+            // --- THE BUILDING PHASE ---
+            // Now, we use 'i' to build larger numbers by multiplying it by known primes
+            for (int p : primes) {
+                // If building this number exceeds our limit, stop.
+                if (i * p > maxValue) break;
+                
+                // CASE B: 'p' is ALREADY inside 'i'
+                if (i % p == 0) {
+                    // Since we are just multiplying by 'p' again, the exponent of 'p' goes up by 1.
+                    count[i * p] = count[i] + 1;
+                    
+                    // The rest of the number does not change at all.
+                    R[i * p] = R[i];
+                    
+                    // MATH MAGIC: Ways(X) = Ways(Rest) * nCr(n + new_exponent - 1, new_exponent)
+                    ways[i * p] = (ways[R[i * p]] * nCr(n + count[i * p] - 1, count[i * p])) % MOD;
+                    
+                    // CRUCIAL: Break here to guarantee every number is built EXACTLY once.
+                    break; 
+                } 
+                // CASE A: 'p' is a BRAND NEW prime factor
+                else {
+                    // Since 'p' is new, its exponent inside (i * p) is exactly 1.
+                    count[i * p] = 1;
+                    
+                    // The rest of the number is exactly 'i', because 'i' contains NO copies of 'p'.
+                    R[i * p] = i;
+                    
+                    // MATH MAGIC: Ways(X) = Ways(Rest) * Ways(p^1). 
+                    // Since Ways(p^1) is just nCr(n, 1), we multiply them directly.
+                    ways[i * p] = (ways[i] * nCr(n, 1)) % MOD;
+                }
+            }
+        }
+        
         return ans;
     }
 };
